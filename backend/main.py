@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 import zipfile
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from backend import satellite
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, model_validator
@@ -20,6 +21,14 @@ from backend.assistant import ChatRequest, chat_completion
 
 SNAPSHOT_PATH = Path(__file__).resolve().parents[1] / 'data/processed/snapshot.json'
 app = FastAPI(title='FloatChat', version='0.1.0', description='Source-linked Argo profile exploration')
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 QCPolicy = Literal['strict', 'expanded']
 
 
