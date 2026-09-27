@@ -3562,3 +3562,67 @@ main {
   background: #e2e5e8;
   color: #202124;
 }
+
+/* Comprehensive Mobile & Responsive Media Queries */
+@media (max-width: 1024px) {
+  .workspace {
+    grid-template-columns: 1fr !important;
+  }
+
+  .rail {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 8px !important;
+    position: relative !important;
+    z-index: 100 !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1)) !important;
+  }
+
+  .rail-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .rail-nav-item {
+    white-space: nowrap !important;
+    padding: 8px 12px !important;
+  }
+
+  .explorer-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .summary-strip {
+    flex-wrap: wrap !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    padding: 10px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .topbar-brand {
+    font-size: 1.1rem !important;
+  }
+
+  .deep-ocean-comparator,
+  .expedition-report-generator,
+  .db-explorer-panel {
+    padding: 14px !important;
+  }
+
+  .voice-chat-drawer {
+    width: 95vw !important;
+    right: 2.5vw !important;
+    bottom: 80px !important;
+  }
+}
