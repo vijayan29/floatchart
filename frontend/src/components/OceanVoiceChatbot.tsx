@@ -20,7 +20,7 @@ export default function OceanVoiceChatbot({
 }) {
     const [open, setOpen] = useState(false);
     const [listening, setListening] = useState(false);
-    const [voiceEnabled, setVoiceEnabled] = useState(true);
+    const [voiceEnabled, setVoiceEnabled] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>([
         {

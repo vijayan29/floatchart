@@ -2,6 +2,10 @@ import { lazy, Suspense, useCallback, useMemo, useEffect, useRef, useState } fro
 import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, ChevronRight, Compass, Database, Download, FileCheck2, FileText, FlaskConical, Globe2, HelpCircle, Layers3, ListFilter, LoaderCircle, Map, MessageSquare, Navigation, Radio, Search, ShieldCheck, Table2, Waves, X } from 'lucide-react';
 import { getJSON, postJSON } from './api';
 import { coordinates, dateLabel, floatColor, type Catalog, type Observation, type ProfileResult, type QueryResult } from './types';
+import ThemeSelector from './components/ThemeSelector';
+import BookmarkManager from './components/BookmarkManager';
+import DeepOceanAIComparator from './components/DeepOceanAIComparator';
+import ExpeditionReportExporter from './components/ExpeditionReportExporter';
 const OceanMap = lazy(() => import('./components/OceanMap'));
 const SatelliteOverlay = lazy(() => import('./components/SatelliteOverlay'));
 import DeferredView from './components/DeferredView';
@@ -233,7 +237,7 @@ export default function App() {
       </div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><a className="wordmark" href="#">FloatChat<span>OCEAN EXPLORER</span></a><div className="breadcrumb">Workspace</div><div className="topbar-right"><span className="snapshot-badge"><i />Real Argo snapshot</span><button className="avatar" aria-label="Open workspace information" onClick={() => help.current?.showModal()}>FC</button></div></header>
+      <header className="topbar"><a className="wordmark" href="#">FloatChat<span>OCEAN EXPLORER</span></a><div className="breadcrumb">Workspace</div><div className="topbar-right"><ThemeSelector /><span className="snapshot-badge"><i />Real Argo snapshot</span><button className="avatar" aria-label="Open workspace information" onClick={() => help.current?.showModal()}>FC</button></div></header>
       <main>
         {workspacePage === 'ask' && <OceanIntro onExplore={() => navigateWorkspace('ask')} onGuide={() => help.current?.showModal()} />}
 
@@ -248,6 +252,8 @@ export default function App() {
             </section>
             <section className="ask-page restored-ask" aria-label="Ask workspace"><MissionControl onLaunch={() => { setView('globe'); navigateWorkspace('explore'); }} /><div className="ask-tools"><div className="query-introduction"><h2>Start your investigation.</h2><p>Ask a question or choose your filters, then explore the results.</p></div>
               <QueryPanel key={catalog.snapshot_id} catalog={catalog} onResult={output => { setInvestigation(output); setReplayTime(null); setSearch(''); setCutoff(output.plan.end_date); setSelected(output.profiles.at(-1)?.profile.id ?? ''); }} onClear={() => { setInvestigation(null); setReplayTime(null); setSearch(''); setCutoff(dates.at(-1) ?? ''); }} />
+              <BookmarkManager currentQueryResult={investigation} />
+              <ExpeditionReportExporter currentQueryResult={investigation} />
               {investigation && <div className="result-next"><button onClick={() => navigateWorkspace('explore')}>Explore these profiles <Compass size={16} /></button><button onClick={() => navigateWorkspace('analyze')}>Analyze this selection <Activity size={16} /></button></div>}
             </div></section>
             <section className="explore-page" aria-label="Explore workspace">
@@ -341,7 +347,7 @@ export default function App() {
               {investigation && <Suspense fallback={<div className="loading-state">Preparing climatology comparison…</div>}><DeferredView active={workspacePage === 'analyze' && analysisView === 'climatology'}><AnomalyExplorer key={investigation.query_id} query={investigation} /></DeferredView></Suspense>}
               {investigation && <Suspense fallback={<div className="loading-state">Preparing depth time series…</div>}><DeferredView active={workspacePage === 'analyze' && analysisView === 'time'}><DepthTimeSeries key={investigation.query_id} query={investigation} /></DeferredView></Suspense>}
               {investigation && <Suspense fallback={<div className="loading-state">Preparing cross-section…</div>}><DeferredView active={workspacePage === 'analyze' && analysisView === 'section'}><DepthSection key={investigation.query_id} query={investigation} /></DeferredView></Suspense>}
-
+              <DeepOceanAIComparator currentQueryResult={investigation} />
             </section>
           </div>
           <footer className="workspace-footer"><span><span className="status-dot" />Cached observations · Acquired {dateLabel(catalog.created_at)}</span><span>ASK. EXPLORE. VERIFY.<span className="footer-divider">/</span>FloatChat v0.1</span></footer>

@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, model_validator
 from backend.queries import QueryPlan, InterpretRequest, execute_query, interpret
 from backend.anomalies import AnomalyRequest
 from backend.sofar import sofar_depth
+from backend.assistant import ChatRequest, chat_completion
 
 SNAPSHOT_PATH = Path(__file__).resolve().parents[1] / 'data/processed/snapshot.json'
 app = FastAPI(title='FloatChat', version='0.1.0', description='Source-linked Argo profile exploration')
@@ -275,8 +276,11 @@ class SQLQueryRequest(BaseModel):
 
 
 @app.get('/api/database/status')
+@app.get('/api/db/status')
 def get_database_status():
     from backend.database import get_db_status
+    return get_db_status()
+
 @app.get('/api/satellite/config')
 def satellite_config():
     """Return static layer metadata for satellite overlays."""
@@ -312,6 +316,31 @@ def sync_database():
     from backend.database import init_database, get_db_status
     init_database(force_rebuild=True)
     return {'status': 'success', 'message': 'Database synchronized with snapshot.', 'db': get_db_status()}
+
+
+class BookmarkPayload(BaseModel):
+    id: str | None = None
+    name: str
+    created_at: str | None = None
+    plan: dict
+
+@app.get('/api/bookmarks')
+def get_user_bookmarks():
+    from backend.database import list_bookmarks
+    return list_bookmarks()
+
+@app.post('/api/bookmarks')
+def save_user_bookmark(body: BookmarkPayload):
+    import uuid, datetime
+    from backend.database import save_bookmark
+    id_str = body.id or str(uuid.uuid4())[:8]
+    created_at = body.created_at or datetime.datetime.utcnow().isoformat() + 'Z'
+    return save_bookmark(id_str, body.name, created_at, body.plan)
+
+@app.delete('/api/bookmarks/{bookmark_id}')
+def delete_user_bookmark(bookmark_id: str):
+    from backend.database import delete_bookmark
+    return delete_bookmark(bookmark_id)
 
 
 # Initialize SQLite DB schema on app module load

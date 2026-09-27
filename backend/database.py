@@ -81,6 +81,15 @@ def init_database(force_rebuild: bool = False) -> None:
                 )
             ''')
 
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS user_bookmarks (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    plan_json TEXT NOT NULL
+                )
+            ''')
+
             # Populate database if empty or force_rebuild requested
             cursor = conn.execute('SELECT COUNT(*) FROM profiles')
             count = cursor.fetchone()[0]
@@ -147,6 +156,7 @@ def get_db_status() -> Dict[str, Any]:
         meta = {row['key']: row['value'] for row in conn.execute('SELECT key, value FROM db_metadata')}
 
         file_size_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+        bookmarks_count = conn.execute('SELECT COUNT(*) FROM user_bookmarks').fetchone()[0]
 
         return {
             'status': 'connected',
@@ -157,9 +167,53 @@ def get_db_status() -> Dict[str, Any]:
                 'profiles': profile_count,
                 'observations': obs_count,
                 'ocean_analytics_log': analytics_count,
+                'user_bookmarks': bookmarks_count,
             },
             'metadata': meta,
         }
+    finally:
+        conn.close()
+
+
+def save_bookmark(id_str: str, name: str, created_at: str, plan: dict) -> Dict[str, Any]:
+    """Save or update a user bookmark in SQLite."""
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO user_bookmarks (id, name, created_at, plan_json)
+                VALUES (?, ?, ?, ?)
+            ''', (id_str, name, created_at, json.dumps(plan)))
+        return {'status': 'success', 'id': id_str}
+    finally:
+        conn.close()
+
+
+def list_bookmarks() -> List[Dict[str, Any]]:
+    """List all user bookmarks stored in SQLite."""
+    conn = get_db_connection()
+    try:
+        rows = conn.execute('SELECT id, name, created_at, plan_json FROM user_bookmarks ORDER BY created_at DESC').fetchall()
+        result = []
+        for r in rows:
+            result.append({
+                'id': r['id'],
+                'name': r['name'],
+                'created_at': r['created_at'],
+                'plan': json.loads(r['plan_json'])
+            })
+        return result
+    finally:
+        conn.close()
+
+
+def delete_bookmark(id_str: str) -> Dict[str, Any]:
+    """Delete a user bookmark by ID."""
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute('DELETE FROM user_bookmarks WHERE id = ?', (id_str,))
+        return {'status': 'success', 'id': id_str}
     finally:
         conn.close()
 

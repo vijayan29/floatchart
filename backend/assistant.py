@@ -222,3 +222,127 @@ def interpret_assisted(request: InterpretRequest, data):
     changed = [k for k in plan if plan[k] != previous[k]]
     return {'status': 'ready', 'message': decision.message, 'plan': plan, 'changed_fields': changed, 'inherited_fields': [k for k in plan if k not in changed], **metadata}
 
+
+# ---------------------------------------------------------------------------
+# Chatbot API integration (OpenAI)
+# ---------------------------------------------------------------------------
+
+class ChatMessage(BaseModel):
+    role: Literal['system', 'user', 'assistant']
+    content: str
+
+class ChatRequest(BaseModel):
+    model: str | None = None  # Optional override, defaults to env variable
+    messages: list[ChatMessage]
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+def chat_completion(request: ChatRequest):
+    """Forward chat messages to configured AI provider (Gemini, Groq, NVIDIA, OpenAI).
+    Returns the assistant's reply content.
+    """
+    config = configuration()
+    if not config['configured']:
+        raise HTTPException(503, detail='No AI provider API key configured (Set OPENAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, or NVIDIA_API_KEY)')
+
+    engine = config['engine']
+
+    if engine == 'gemini':
+        model = request.model or config['model'] or 'gemini-3.8-flash'
+        contents = []
+        system_instruction = None
+        for msg in request.messages:
+            if msg.role == 'system':
+                system_instruction = {'parts': [{'text': msg.content}]}
+            else:
+                role = 'user' if msg.role == 'user' else 'model'
+                contents.append({'role': role, 'parts': [{'text': msg.content}]})
+        payload = {'contents': contents}
+        if system_instruction:
+            payload['systemInstruction'] = system_instruction
+        if request.max_tokens or request.temperature:
+            gen_cfg = {}
+            if request.max_tokens: gen_cfg['maxOutputTokens'] = request.max_tokens
+            if request.temperature: gen_cfg['temperature'] = request.temperature
+            payload['generationConfig'] = gen_cfg
+            
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+                headers={'x-goog-api-key': provider_key('GEMINI_API_KEY')},
+                json=payload
+            )
+            response.raise_for_status()
+            body = response.json()
+        try:
+            parts = body['candidates'][0]['content']['parts']
+            reply = ''.join(p.get('text', '') for p in parts)
+            return {'reply': reply, 'engine': 'gemini', 'model': model}
+        except (KeyError, IndexError):
+            raise HTTPException(502, detail='Invalid response from Gemini API')
+
+    elif engine == 'groq':
+        model = request.model or config['model'] or 'openai/gpt-oss-20b'
+        payload = {
+            'model': model,
+            'messages': [msg.model_dump() for msg in request.messages]
+        }
+        if request.temperature is not None: payload['temperature'] = request.temperature
+        if request.max_tokens is not None: payload['max_tokens'] = request.max_tokens
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                'https://api.groq.com/openai/v1/chat/completions',
+                headers={'Authorization': f'Bearer {provider_key("GROQ_API_KEY")}'},
+                json=payload
+            )
+            response.raise_for_status()
+            data = response.json()
+        try:
+            reply = data['choices'][0]['message']['content']
+            return {'reply': reply, 'engine': 'groq', 'model': model}
+        except (KeyError, IndexError):
+            raise HTTPException(502, detail='Invalid response from Groq API')
+
+    elif engine == 'nvidia':
+        model = request.model or config['model'] or 'openai/gpt-oss-20b'
+        payload = {
+            'model': model,
+            'messages': [msg.model_dump() for msg in request.messages]
+        }
+        if request.temperature is not None: payload['temperature'] = request.temperature
+        if request.max_tokens is not None: payload['max_tokens'] = request.max_tokens
+        with httpx.Client(timeout=60.0) as client:
+            response = client.post(
+                'https://integrate.api.nvidia.com/v1/chat/completions',
+                headers={'Authorization': f'Bearer {provider_key("NVIDIA_API_KEY")}', 'Accept': 'application/json'},
+                json=payload
+            )
+            response.raise_for_status()
+            data = response.json()
+        try:
+            reply = data['choices'][0]['message']['content']
+            return {'reply': reply, 'engine': 'nvidia', 'model': model}
+        except (KeyError, IndexError):
+            raise HTTPException(502, detail='Invalid response from NVIDIA API')
+
+    else: # openai
+        model = request.model or os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+        payload = {
+            'model': model,
+            'messages': [msg.model_dump() for msg in request.messages],
+        }
+        if request.temperature is not None: payload['temperature'] = request.temperature
+        if request.max_tokens is not None: payload['max_tokens'] = request.max_tokens
+        headers = {
+            'Authorization': f'Bearer {provider_key("OPENAI_API_KEY")}',
+            'Content-Type': 'application/json',
+        }
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post('https://api.openai.com/v1/chat/completions', headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+        try:
+            reply = data['choices'][0]['message']['content']
+            return {'reply': reply, 'engine': 'openai', 'model': model}
+        except (KeyError, IndexError):
+            raise HTTPException(502, detail='Invalid response from OpenAI API')
